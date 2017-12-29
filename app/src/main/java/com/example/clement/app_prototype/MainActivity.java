@@ -1,6 +1,9 @@
 package com.example.clement.app_prototype;
 
+import android.arch.persistence.room.Room;
 import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
 import android.support.design.widget.FloatingActionButton;
@@ -18,6 +21,8 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
@@ -27,6 +32,9 @@ public class MainActivity extends AppCompatActivity
     private ArrayList<String> listItems=new ArrayList<String>();
 
     private ListView lv;
+
+    private /*final*/ ContactDB contact_db_ = Room.databaseBuilder(this, ContactDB.class,
+            "ContactsDB").build();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +65,19 @@ public class MainActivity extends AppCompatActivity
 
         NavigationView navigationView = findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
+
+
+
+        Executors.newSingleThreadExecutor().execute(new Runnable() {
+            @Override
+            public void run() {
+                List< Contact > contacts = contact_db_.contactDAO().GetContacts();
+                for (Contact contact : contacts) {
+                    listItems.add( contact.getName() );
+                }
+            }
+        });
+
     }
 
     @Override
@@ -91,6 +112,13 @@ public class MainActivity extends AppCompatActivity
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
+            Executors.newSingleThreadExecutor().execute(new Runnable() {
+                @Override
+                public void run() {
+                    contact_db_.contactDAO().deleteAllContacts();
+                    listItems.clear();
+                }
+            });
             return true;
         }
 
@@ -128,7 +156,39 @@ public class MainActivity extends AppCompatActivity
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == PICK_CONTACT) {
             if (resultCode == RESULT_OK) {
-                listItems.add(data.getDataString());
+
+
+                Uri uri = data.getData();
+
+               String contactName = null;
+
+                // querying contact data store
+                Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+
+                if (cursor.moveToFirst()) {
+
+                    // DISPLAY_NAME = The display name for the contact.
+                    // HAS_PHONE_NUMBER =   An indicator of whether this contact has at least one phone number.
+
+                    contactName = cursor.getString(cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME));
+                }
+
+                cursor.close();
+
+
+                final String cpy = contactName;
+
+
+                Executors.newSingleThreadExecutor().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                       // int sz = listItems.size();
+                        int sz = contact_db_.contactDAO().GetContacts().size();
+                        contact_db_.contactDAO().insertContact( new Contact( sz - 1, cpy ));
+                        listItems.add(cpy);
+                    }
+                });
+
                 ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,
                         android.R.layout.simple_list_item_1,
                         listItems);
