@@ -10,7 +10,7 @@ import android.arch.persistence.room.PrimaryKey;
 @Entity
 
 public class Contact {
-    @PrimaryKey
+    @PrimaryKey( autoGenerate =  true )
     private int id;
     private String name;
 
